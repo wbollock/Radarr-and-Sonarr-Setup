@@ -55,11 +55,11 @@ Onto Radarr. I didn't setup anything with docker due to prior bad experiences.
 I installed it manually, and ran it under the wbollock user instead of Radarr for ease of use. It uses systemd like everything else.
 
 **Note:** wondering what systemd is? It's a system wide method of managing services. When you make this systemd scripts I recommend, you need to run the following:
-<code>sudo systemctl daemon-reload     (this is when you've made a new systemd service file, or made a change to one)
+<pre>sudo systemctl daemon-reload     (this is when you've made a new systemd service file, or made a change to one)
   sudo systemctl start *SERVICE* (replace service with the actual service name)
   sudo systemctl status *SERVICE* (debug issues)
   sudo systemctl enable *SERVICE* (to run the service on every boot)
-</code>
+</pre>
 
 This is the central location for everything. You import existing movies and find new ones. It'll even recommend movies for you! [The Radarr Wiki](https://github.com/Radarr/Radarr/wiki) was quite useful in setting this up. I did the .tar.gz and moved it /opt/Radarr. wbollock already had permission on this folder.
 
@@ -118,7 +118,7 @@ nano /etc/systemd/system/deluged.service
 
 Copy the following code into that service file.
 
-<code>
+<pre>
 [Unit]
 Description=Deluge Bittorrent Client Daemon
 After=network-online.target
@@ -133,12 +133,12 @@ ExecStart=/usr/bin/deluged -d
 
 Restart=on-failure
 
-# Configures the time to wait before service is stopped forcefully.
+\# Configures the time to wait before service is stopped forcefully.
 TimeoutStopSec=300
 
 [Install]
 WantedBy=multi-user.target
-</code>
+</pre>
 
 <pre>
 systemctl start deluged
@@ -148,7 +148,7 @@ nano /etc/systemd/system/deluge-web.service
 </pre>
 
 
-<code>
+<pre>
 [Unit]
 Description=Deluge Bittorrent Client Web Interface
 After=network-online.target
@@ -166,7 +166,7 @@ Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
-</code>
+</pre>
 
 <pre>
 systemctl start deluge-web
@@ -212,14 +212,14 @@ Aggregate indexers
 A special "all" indexer is available at /api/v2.0/indexers/all/results/torznab. It will query all configured indexers and return the combined results.
 
 If your client supports multiple feeds it's recommended to add each indexer directly instead of using the all indexer. Using the all indexer has no advantages (besides reduced management overhead), only disadvantages:
-
+<pre>
 you lose control over indexer specific settings (categories, search modes, etc.)
 mixing search modes (IMDB, query, etc.) might cause low quality results
 indexer specific categories (>= 100000) can't be used.
 slow indexers will slow down the overall result
 total results are limited to 1000
 To get all Jackett indexers including their capabilities you can use t=indexers on the all indexer. To get only configured/unconfigured indexers you can also add configured=true/false as query parameter.
-
+</pre>
 <pre>
 Adding a Jackett indexer in Sonarr or Radarr
 
