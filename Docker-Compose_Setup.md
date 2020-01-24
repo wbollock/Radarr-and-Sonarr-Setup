@@ -1,6 +1,6 @@
 # Yet Another Radarr and Sonarr Guide - Docker Conversion
 
-Note: this guide assumes you already have these applications installed normally, and want to convert. There are plenty of guides on how to install these standalone on Docker. Here is a link to my [previous guide](https://github.com/wbollock/Radarr-and-Sonarr-Setup/blob/master/Dockerless_Setup.md).
+
 
 
 Shortly after posting my last guide, I was quickly informed how much better this setup would be with docker. Well, here I am, trying to get one monolithic docker compose file for the services previously installed:
@@ -13,7 +13,7 @@ Deluge
 
 Jackett
 
-This guide can also be used for first time setups of these services, just ignore all the backing up and restoring. 
+This guide can also be used for first time setups of these services, just ignore all the backing up and restoring.You might've seen my [previous guide](https://github.com/wbollock/Radarr-and-Sonarr-Setup/blob/master/Dockerless_Setup.md).
 
 Written for Ubuntu 18.04. One caveat is that I have had little experience with docker before this, completing the tutorial around a year ago and not touching it since.
 
