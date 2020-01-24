@@ -13,7 +13,7 @@ Deluge
 
 Jackett
 
-This guide can also be used for first time setups of these services, just ignore all the backing up and restoring.You might've seen my [previous guide](https://github.com/wbollock/Radarr-and-Sonarr-Setup/blob/master/Dockerless_Setup.md).
+This guide can also be used for first time setups of these services, just ignore all the backing up and restoring. You might've seen my [previous guide](https://github.com/wbollock/Radarr-and-Sonarr-Setup/blob/master/Dockerless_Setup.md).
 
 Written for Ubuntu 18.04. One caveat is that I have had little experience with docker before this, completing the tutorial around a year ago and not touching it since.
 
