@@ -287,6 +287,25 @@ Then run <code>sudo docker-compose -d</code> from your original docker compose f
 
 All your Radarr and Sonarr settings should be saved! Do <code>sudo docker-compose logs</code> if you have any issues.
 
+To access your services, go to YOUR IP.XX.XX:<\PORT SET IN DOCKER>.
+
+For example, running <code>sudo docker-compose ps</code>:
+
+<pre>
+ Name     Command   State           Ports
+
+deluge    /init     Up
+jackett   /init     Up      0.0.0.0:9117->9117/tcp
+radarr    /init     Up      0.0.0.0:7878->7878/tcp
+sonarr    /init     Up      0.0.0.0:8989->8989/tcp
+</pre>
+
+For some reason, deluge doesn't show up, but it's port is 8112. If you're using <code>ufw</code>, make sure to run <code>sudo ufw allow PORT</code> to get by your firewall.
+
+
+
+
+
 ## Reconfiguring a few things
 
 Sadly this isn't all automated. For example, my Sonarr/Radarr couldn't collect to deluge. I had to change "localhost" in the connection settings to 192.168.0.186 (IP you connect to deluge with). 
