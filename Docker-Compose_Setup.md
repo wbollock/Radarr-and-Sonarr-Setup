@@ -44,13 +44,12 @@ to download this on your server.
 
 Download the latest copies of both backups.
 
-Backing up Jackett didn't see to work for me. The Content folder didn't match any of the docker configs. Because it was so little to configure, I just set it up from scratch.
+Backing up Jackett didn't see to work for me. The Content folder didn't match any of the docker configs. Because it was so little to configure, I just set it up from scratch again. 
 
 ~~I don't feel it's worth to bother backing up Jackett, as I only had 6 indexers. I also couldn't find a good way to backup Jackett.~~
 
-~~To backup Jackett, cp -r the /home/<USER>/Jackett/Content folder, or wherever it is on your machine (you can find it with~~ <code>sudo systemctl status Jackett</code>
+~~To backup Jackett, cp -r the /home/<USER>/Jackett/Content folder, or wherever it is on your machine~~ 
 
-<code>sudo cp -r /home/<USER>/Jackett/Content/ /wherever/your/backup/is</code>
 
 ## Making our Docker Compose File
 
@@ -122,7 +121,7 @@ services:
     restart: unless-stopped
 </pre>
 
-All we need to do is fill in the blanks!
+All we need to do is fill in the blanks (meaning all the <path/to/configs>).
 
 
 ### Username
@@ -135,7 +134,7 @@ First, get the PUID and PGID (unique identifiers) of the user you want to use th
 uid=1000(wbollock) gid=1000(wbollock) groups=1000(wbollock),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),109(lxd),114(lpadmin),115(sambashare),128(deluge)
 </pre>
 
-So, here they are both 1000. Substitute your username.
+So, here they are both 1000. Substitute the username you wish to run these services with. Permissions are important in this case, and <code>ls -l</code> is your friend.
 
 ### Directories
 
@@ -253,14 +252,16 @@ services:
 
 Check your compose file with <code>docker-compose config</code>. Mine is located in /home/wbollock/Radarr-Stack. Make sure to name the file docker-compose.yml.
 
-You can only run docker-compose commands when in the same directory with your yml file. Or use the --file parameter to specify where the yml file is.
+**Important:** yml uses spaces, NOT tabs. It's very particular about every single indent. Make sure to line everything up properly, and possibly use an [online yml parser](http://yaml-online-parser.appspot.com/) to help.
+
+You can only run docker-compose commands when in the same directory with your yml file. Or use the --file parameter to specify where the yml file is, if you're outside of that directory.
 
 
-Finally, once you get a valid output and no errors from the above command, we're ready to create. Run this in the folder with docker-compose.yml
+Finally, once you get a valid output and no errors from the above command, we're ready to create (it'll spit out the error in an obvious way if you have any). Run this in the folder with docker-compose.yml
 
 <code>sudo docker-compose up -d</code>
 
-**Explanation:** the -d is to run in detached mode, so we can use the terminal normally while it runs.
+**Explanation:** the -d is to run in detached mode, so we can use the terminal normally while it runs. Similar to &.
 
 
 **Note:** one error I ran into was that a process, mono, was already listening on 8989. I took down my docker compose stack with <code>sudo docker-compose down</code>, and ran <code> sudo netstat -tulpn | grep :8989</code> to find out what was listening on that port. It was mono, with PID 5649. I ran <code>sudo kill 5649</code> to remove it from that port.
@@ -299,5 +300,36 @@ Lastly, just re-do your indexers in Jackett, and connect them to Radarr and Sona
 ## Missing Root Folder Error
 
 After verifying your /movies/ or /tv/ folders work, and you want the clear the Root Folder Error, go the Series or Movies editor. Select all entries, or just one to test (safer), and select a different root folder on the bottom bar. Then hit save. The error will go away after all pieces of media are updated (and the service is restarted).
+
+
+## A reminder - some useful docker-compose commands
+<pre>
+ docker-compose
+
+  Run and manage multi container docker applications.
+  More information: https://docs.docker.com/compose/reference/overview/.
+
+  - List all running containers:
+    docker-compose ps
+
+  - Create and start all containers in the background using a docker-compose.yml file from the current directory:
+    docker-compose up -d
+
+  - Start all containers, rebuild if necessary:
+    docker-compose up --build
+
+  - Start all containers using an alternate compose file:
+    docker-compose --file path/to/file up
+
+  - Stop all running containers:
+    docker-compose stop
+
+  - Stop and remove all containers, networks, images, and volumes:
+    docker-compose down --rmi all --volumes
+
+  - Follow logs for all containers:
+    docker-compose logs --follow
+</pre>
+(Taken from [tldr](https://github.com/tldr-pages/tldr))
 
 Everything else should work just fine! I hope you enjoyed.
