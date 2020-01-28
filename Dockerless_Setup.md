@@ -45,6 +45,8 @@ To verify, run <code>curl ifconfig.me</code>. Make sure it's not your normal pub
 
 Now your machine is connected to a VPN, *and* accessible through it's private address. Good job!
 
+**Recommended:** You will want to force Deluge to download torrents through Mullvad. One way to do this is to enforce a SOCKS5 proxy, only accessible if mullvad is on. Please see [this link](https://mullvad.net/en/help/socks5-proxy/) for easy instructions (follow the Firefox part).
+
 ## Radarr
 
 [Radarr](http://192.168.0.186:7878/)
