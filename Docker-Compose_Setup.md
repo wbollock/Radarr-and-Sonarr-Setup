@@ -17,6 +17,31 @@ This guide can also be used for first time setups of these services, just ignore
 
 Written for Ubuntu 18.04. One caveat is that I have had little experience with docker before this, completing the tutorial around a year ago and not touching it since.
 
+## Mullvad
+
+You can use any trusted VPN. I highly recommend [Mullvad](https://mullvad.net/en/) due to their security and anonymity. 
+
+It's use is super easy. First, download the Linux client with:
+<code>wget https://mullvad.net/media/app/MullvadVPN-2019.10_amd64.deb</code>
+
+Install this with:
+<code>sudo dpkg -i MullvadVPN-2019.10_amd64.deb</code>
+
+Now you can use the mullvad VPN on command line. For my setup, I wanted to have my VPN on all the time. Some other users may want to only have their torrent client use the VPN, to prevent leakage. See this [article](https://mullvad.net/en/help/bittorrent/) for help, and expand it to other torrent clients.
+
+**Important:** I instantly locked myself out of my machine when setting this up without thinking. You MUST enable LAN access to continue remote access to your machine. See <code>mullvad lan</code> for more details.
+
+
+<code>mullvad status</code> is a good way to see the current status. Are you connected or not?
+
+<code>mullvad account XXXXX</code> to connect. Obviously input XXXX as your actual account number.
+
+To verify, run <code>curl ifconfig.me</code>. Make sure it's not your normal public IP. This method is insecure, for some reason, so keep that in mind.
+
+Now your machine is connected to a VPN, *and* accessible through it's private address. Good job!
+
+**Recommended:** You will want to force Deluge to download torrents through Mullvad. One way to do this is to enforce a SOCKS5 proxy, only accessible if mullvad is on. Please see [this link](https://mullvad.net/en/help/socks5-proxy/) for easy instructions (follow the Firefox part).
+
 
 ## Installing Docker and Docker compose
 
