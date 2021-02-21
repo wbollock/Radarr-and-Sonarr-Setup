@@ -5,8 +5,9 @@ This repo is for various Radarr and Sonarr full-suite setups. These are written 
 
 ## Full Docker Setup
 
-Docker-compose setup (with conversion/backup/restore instructions)](Docker-Compose_Setup.md)
+[Docker-compose setup](Docker-Compose_Setup.md), with conversion/backup/restore instructions
 
 ## Setup without Docker
+
 [Dockerless setups](Dockerless_Setup.md)
 
