@@ -1,0 +1,181 @@
+version: '3'
+services:
+
+ deluge:
+  container_name: deluge
+  restart: always
+  network_mode: service:openvpn-client
+  environment:
+   - PUID=1006
+   - PGID=1002
+   - TZ=America/New_York
+   - UMASK=000
+   - DELUGE_LOGLEVEL=error
+  volumes:
+   - /opt/deluge/:/config
+   - /mnt/storage/:/data
+  image: linuxserver/deluge
+
+# Important
+# hardlinks fix: https://www.reddit.com/r/radarr/comments/9b06e5/trying_to_get_radarr_on_docker_to_use_move_rather/
+
+ openvpn-client:
+   image: yacht7/openvpn-client
+   container_name: openvpn-client
+   cap_add:
+     - NET_ADMIN
+   devices:
+     - /dev/net/tun
+   volumes:
+     - ./openvpn:/data/vpn
+   restart: always
+   environment:
+     - KILL_SWITCH=on
+     - SUBNETS=192.168.0.0/24, 10.8.0.1/24
+     - PUID=1000
+     - PGID=1000
+     - VPN_LOG_LEVEL=3
+   ports:
+     - 8989:8989 # sonarr
+     - 7878:7878 # radarr
+     - 7979:7979 # 4kradarr
+     - 6767:6767 # bazarr
+     - 6868:6868 # 4kbazarr
+     - 8112:8112 # deluge
+     - 9696:9696 # prowlarr
+     - 5055:5055 # overseerr
+     - 1080:1080 # for socks5 proxy
+     - 6881:6881 # deluge again
+    # - 8191:8191 # flaresolver
+
+ radarr:
+  container_name: radarr
+  restart: always
+  network_mode: service:openvpn-client
+  #ports:
+  # - 7878:7878
+  volumes:
+    - /opt/radarr/:/config
+    - /mnt/storage/:/data
+  environment:
+   - PUID=1003
+   - PGID=1002
+   - TZ=America/New_York
+  image: linuxserver/radarr
+
+
+ sonarr:
+  container_name: sonarr
+  restart: always
+  network_mode: service:openvpn-client
+  #ports:
+  # - 8989:8989
+  volumes:
+    - /opt/sonarr/:/config
+    - /mnt/storage/:/data
+    #- /mnt/STR/Plex Library/TV Shows:/tv
+    #- /mnt/STR/deluge/:/downloads
+  environment:
+   - PUID=1004
+   - PGID=1002
+   - TZ=America/New_York
+  image: linuxserver/sonarr:latest
+
+ bazarr:
+   image: linuxserver/bazarr
+   container_name: bazarr
+   network_mode: service:openvpn-client
+   environment:
+     - PUID=1007
+     - PGID=1002
+     - TZ=America/New_York
+     - UMASK_SET=022 #optional
+   volumes:
+     - /opt/bazarr:/config
+     - /mnt/storage/:/data
+   #ports:
+   #  - 6767:6767
+   restart: always
+
+
+ 4K_radarr:
+  container_name: 4K_radarr
+  restart: always
+  network_mode: service:openvpn-client
+  #ports:
+  # - 7979:7979
+  volumes:
+    - /opt/4K_radarr/:/config
+    - /mnt/storage/:/data
+  environment:
+   - PUID=1008
+   - PGID=1002
+   - TZ=America/New_York
+  image: linuxserver/radarr
+  depends_on:
+   - "deluge"
+   - "radarr"
+
+ 4K_bazarr:
+   image: linuxserver/bazarr
+   container_name: 4K_bazarr
+   network_mode: service:openvpn-client
+   environment:
+     - PUID=1009
+     - PGID=1002
+     - TZ=America/New_York
+     - UMASK_SET=022 #optional
+   volumes:
+     - /opt/4K_bazarr:/config
+     - /mnt/storage/:/data
+   #ports:
+   #  - 6868:6868
+   restart: always
+   depends_on:
+   - "4K_radarr"
+
+
+ prowlarr:
+   image: ghcr.io/linuxserver/prowlarr:develop
+   container_name: prowlarr
+   network_mode: service:openvpn-client
+   restart: always
+   environment:
+     - PUID=1010
+     - PGID=1002
+     - TZ=America/New_York
+   volumes:
+     - /opt/prowlarr:/config
+   #ports:
+   #  - 9696:9696
+   restart: unless-stopped
+
+ overseerr:
+  image: lscr.io/linuxserver/overseerr
+  container_name: overseerr
+  network_mode: service:openvpn-client
+  environment:
+    - PUID=1011
+    - PGID=1002
+    - TZ=America/New_York
+  volumes:
+    - /opt/overseerr:/config
+  #ports:
+  #  - 5055:5055
+  restart: unless-stopped
+
+# Disabled as the application isn't in a great state just yet - check back semi-often
+# flaresolverr: # needed for some indexers
+#    # DockerHub mirror flaresolverr/flaresolverr:latest
+#   image: ghcr.io/flaresolverr/flaresolverr:latest
+#   container_name: flaresolverr
+#   network_mode: service:openvpn-client
+#   environment:
+#     - LOG_LEVEL=${LOG_LEVEL:-info}
+#     - LOG_HTML=${LOG_HTML:-false}
+#     - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+#     - TZ=America/New_York
+   #  - HOST=192.168.0.186
+#   #ports:
+#   #  - 8191:8191
+ #  restart: unless-stopped
