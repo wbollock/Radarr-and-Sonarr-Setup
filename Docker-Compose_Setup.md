@@ -1,379 +1,395 @@
-# Yet Another Radarr and Sonarr Guide - Docker Conversion
+# Yet Another Radarr and Sonarr Guide - 2026 Docker Compose Edition
 
+After a few years of running and breaking this stack in different ways, this is the cleaned-up version for a modern Docker setup. It is mostly set-and-forget but I do want to migrate to Nomad soon.
 
+This guide is for people who want one compose stack for the ARR ecosystem, with torrent traffic going through WireGuard (Mullvad).
 
+## What we're building
 
-Shortly after posting my last guide, I was quickly informed how much better this setup would be with docker. Well, here I am, trying to get one monolithic docker compose file for the services previously installed:
+- One `wireguard` container handles network egress and published ports
+- ARR and related services use `network_mode: service:wireguard` 
+- Configs live in per-service folders
+- Media/download paths are shared across services with a consistent mount
 
-Radarr
+## Services in this stack
 
-Sonarr
+This guide covers all of these services:
 
-Deluge
+- `wireguard`
+- `deluge`
+- `radarr`
+- `sonarr`
+- `bazarr`
+- `4K_radarr`
+- `4K_bazarr`
+- `prowlarr`
+- `overseerr`
+- `profilarr`
+- `huntarr`
+- `cleanuparr`
+- `readarr`
+- `whisper-subgen`
+- `agregarr`
 
-Jackett
+Some are optional like whisper-subgen. Others you really must have in some form like deluge.
 
-This guide can also be used for first time setups of these services, just ignore all the backing up and restoring. You might've seen my [previous guide](https://github.com/wbollock/Radarr-and-Sonarr-Setup/blob/master/Dockerless_Setup.md).
+## Before you start
 
-Written for Ubuntu 18.04. One caveat is that I have had little experience with docker before this, completing the tutorial around a year ago and not touching it since.
+You need:
 
-## Mullvad
+- Linux host with Docker + Compose plugin (`docker compose`). This might work on Mac too.
+- A VPN provider/config for WireGuard (example in this repo uses Mullvad configs)
+- A plan for:
+  - app config path (example: `/opt/<service>`), where to store configs for applications.
+  - media/download path (example: `/mnt/storage`), this can be as large or small as you want!
 
-You can use any trusted VPN. I highly recommend [Mullvad](https://mullvad.net/en/) due to their security and anonymity. 
+Quick checks for `docker`:
 
-It's use is super easy. First, download the Linux client with:
-<code>wget https://mullvad.net/media/app/MullvadVPN-2019.10_amd64.deb</code>
+```bash
+docker --version
+docker compose version
+```
 
-Install this with:
-<code>sudo dpkg -i MullvadVPN-2019.10_amd64.deb</code>
+## Directory layout (example)
 
-Now you can use the mullvad VPN on command line. For my setup, I wanted to have my VPN on all the time. Some other users may want to only have their torrent client use the VPN, to prevent leakage. See this [article](https://mullvad.net/en/help/bittorrent/) for help, and expand it to other torrent clients.
+Use any layout you like, but keep it consistent.
 
-**Important:** I instantly locked myself out of my machine when setting this up without thinking. You MUST enable LAN access to continue remote access to your machine. See <code>mullvad lan</code> for more details.
+Example:
 
+```text
+~/docker/pvr/
+  docker-compose.yaml
+  wireguard-config/
+  mullvad/
+```
 
-<code>mullvad status</code> is a good way to see the current status. Are you connected or not?
+It is easier to just keep app configs next to `docker-compose.yaml` and run everything as one normal user (`PUID`/`PGID`), for example with `./radarr`, `./sonarr`, and similar folders. Creating separate `/opt/...` directories and separate service users is optional and mostly useful for stricter isolation/hardening. Start simple with one user and local folders, then split things out later only if you want to. Easy enough to script it out. In the past I created specific users for services like radarr/sonnar but that may be overkill.
 
-<code>mullvad account XXXXX</code> to connect. Obviously input XXXX as your actual account number.
+## Example docker-compose.yaml (2026 style)
 
-To verify, run <code>curl ifconfig.me</code>. Make sure it's not your normal public IP. This method is insecure, for some reason, so keep that in mind.
+This is it! You can pretty much just copy this into your server as `docker-compose.yaml`, and run `sudo docker compose up -d`. Check logs for any errors. Manual intervention will be needed for mullvad config (or your chosen VPN provider with wireguard) and some application settings like the GUI of Radarr/Sonnar/Deluge.
 
-Now your machine is connected to a VPN, *and* accessible through it's private address. Good job!
+I also recommend pinning images and not defaulting to `latest` for stability moreso than anything.
 
-**Recommended:** You will want to force Deluge to download torrents through Mullvad. One way to do this is to enforce a SOCKS5 proxy, only accessible if mullvad is on. Please see [this link](https://mullvad.net/en/help/socks5-proxy/) for easy instructions (follow the Firefox part).
-
-
-## Installing Docker and Docker compose
-
-[Source 1 (Docker)](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04#step-1-%E2%80%94-installing-docker)
-
-[Source 2 (Docker Compose)](https://linuxize.com/post/how-to-install-and-use-docker-compose-on-ubuntu-18-04/)
-
-Now you should have Docker and Docker Compose installed.
-
-Test with:
-
-<code>docker -v</code>
-
-<code>docker-compose --version</code>
-
-## Backup our Existing Setups
-
-Sonarr and Radarr should really be backed up first. I put the most time into those, such as importing movies and fixing TV shows, plus all the custom settings. 
-
-To backup, go to System -> Backups. Download this file on your main machine, or copy the link address and use
-
-<code>wget <INSERT LINK\></code>
-
-to download this on your server.
-
-Download the latest copies of both backups.
-
-Backing up Jackett didn't see to work for me. The Content folder didn't match any of the docker configs. Because it was so little to configure, I just set it up from scratch again. 
-
-~~I don't feel it's worth to bother backing up Jackett, as I only had 6 indexers. I also couldn't find a good way to backup Jackett.~~
-
-~~To backup Jackett, cp -r the /home/<USER>/Jackett/Content folder, or wherever it is on your machine~~ 
-
-
-## Making our Docker Compose File
-
-Timezone: America/New_York
-
-Find your timezone [here](https://docs.diladele.com/docker/timezones.html).
-
-Here is a template for all services. Radarr, Sonarr, Jackett, Deluge:
-
-<pre>
-version: '3'
+```yaml
 services:
- radarr:
-  container_name: radarr
-  restart: unless-stopped
-  ports:
-   - 7878:7878
-  volumes:
-    - <\path to data>:/config
-    - <\path/to/movies>:/movies
-    - <\path/to/downloadclient-downloads>:/downloads
-  environment:
-   - PUID=1000
-   - PGID=1000
-   - TZ=America/New_York
-  image: linuxserver/radarr
- 
- sonarr:
-  container_name: sonarr
-  restart: unless-stopped
-  ports:
-   - 8989:8989
-  volumes:
-    - <\path to data>:/config
-    - <\path/to/tv>:/tv
-    - <\path/to/downloadclient-downloads>:/downloads
-  environment:
-   - PUID=1000
-   - PGID=1000
-   - TZ=America/New_York
-  image: linuxserver/sonarr
- 
- jackett:
-  container_name: jackett
-  restart: unless-stopped
-  ports:
-   - 9117:9117
-  volumes:
-   - <\path to data>:/config
-  environment:
-   - PUID=1000
-   - PGID=1000
-   - TZ=America/New_York
-  image: linuxserver/jackett
-
-  deluge:
-    image: linuxserver/deluge
-    container_name: deluge
-    network_mode: host
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:1.0.20250521
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=America/New_York
-      - UMASK_SET=000 #optional
-      - DELUGE_LOGLEVEL=error #optional
     volumes:
-      - <\/path/to/deluge/config>:/config
-      - <\/path/to/your/downloads>:/downloads
+      - ./wireguard-config:/config
+      - ./mullvad:/mullvad:ro
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - 8989:8989 # sonarr
+      - 7878:7878 # radarr
+      - 7979:7979 # 4k radarr
+      - 6767:6767 # bazarr
+      - 6969:6969 # 4k bazarr
+      - 8112:8112 # deluge web
+      - 9696:9696 # prowlarr
+      - 5055:5055 # overseerr
+      - 6868:6868 # profilarr
+      - 9705:9705 # huntarr
+      - 11011:11011 # cleanuparr
+      - 8787:8787 # readarr
+      - 8788:8788 # reading glasses
+      - 7171:7171 # agregarr
+      - 1080:1080 # socks5
+      - 6881:6881
+      - 6881:6881/udp
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.all.disable_ipv6=0
+    restart: always
+
+  deluge:
+    image: linuxserver/deluge:2.2.0
+    container_name: deluge
+    network_mode: service:wireguard
+    environment:
+      - PUID=1006
+      - PGID=1002
+      - TZ=America/New_York
+      - UMASK=000
+      - DELUGE_LOGLEVEL=error
+    volumes:
+      - /opt/deluge:/config
+      - /mnt/storage:/data
+    restart: always
+
+  radarr:
+    image: linuxserver/radarr:6.1.0-nightly
+    container_name: radarr
+    network_mode: service:wireguard
+    environment:
+      - PUID=1003
+      - PGID=1002
+      - TZ=America/New_York
+    volumes:
+      - /opt/radarr:/config
+      - /mnt/storage:/data
+    restart: always
+
+  sonarr:
+    image: linuxserver/sonarr:4.0.16
+    container_name: sonarr
+    network_mode: service:wireguard
+    environment:
+      - PUID=1004
+      - PGID=1002
+      - TZ=America/New_York
+    volumes:
+      - /opt/sonarr:/config
+      - /mnt/storage:/data
+    restart: always
+
+  bazarr:
+    image: linuxserver/bazarr:1.5.4-development
+    container_name: bazarr
+    network_mode: service:wireguard
+    environment:
+      - PUID=1007
+      - PGID=1002
+      - TZ=America/New_York
+      - UMASK_SET=022
+    volumes:
+      - /opt/bazarr:/config
+      - /mnt/storage:/data
+    restart: always
+
+  4K_radarr:
+    image: linuxserver/radarr:6.1.0-nightly
+    container_name: 4K_radarr
+    network_mode: service:wireguard
+    environment:
+      - PUID=1008
+      - PGID=1002
+      - TZ=America/New_York
+    volumes:
+      - /opt/4K_radarr:/config
+      - /mnt/storage:/data
+    restart: always
+
+  4K_bazarr:
+    image: linuxserver/bazarr:1.5.4-development
+    container_name: 4K_bazarr
+    network_mode: service:wireguard
+    environment:
+      - PUID=1009
+      - PGID=1002
+      - TZ=America/New_York
+      - UMASK_SET=022
+    volumes:
+      - /opt/4K_bazarr:/config
+      - /mnt/storage:/data
+    restart: always
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:1.29.2-nightly
+    container_name: prowlarr
+    network_mode: service:wireguard
+    environment:
+      - PUID=1010
+      - PGID=1002
+      - TZ=America/New_York
+    volumes:
+      - /opt/prowlarr:/config
+    restart: always
+
+  overseerr:
+    image: lscr.io/linuxserver/overseerr:1.33.2
+    container_name: overseerr
+    network_mode: service:wireguard
+    environment:
+      - PUID=1011
+      - PGID=1002
+      - TZ=America/New_York
+    volumes:
+      - /opt/overseerr:/config
     restart: unless-stopped
-</pre>
 
-All we need to do is fill in the blanks (meaning all the <path/to/configs>).
+  profilarr:
+    image: santiagosayshey/profilarr:v1.1.3
+    container_name: profilarr
+    network_mode: service:wireguard
+    environment:
+      - PUID=1014
+      - PGID=1002
+      - TZ=America/New_York
+    volumes:
+      - /opt/profilarr:/config
+    restart: unless-stopped
 
+  huntarr:
+    image: huntarr/huntarr:159f6bf989415ae30c94ab08b2543d8664381f9d
+    container_name: huntarr
+    network_mode: service:wireguard
+    environment:
+      - TZ=America/New_York
+    volumes:
+      - /opt/huntarr:/config
+    restart: always
 
-### Username
+  cleanuparr:
+    image: ghcr.io/cleanuparr/cleanuparr:2.4.5
+    container_name: cleanuparr
+    network_mode: service:wireguard
+    environment:
+      - PUID=1015
+      - PGID=1002
+      - TZ=America/New_York
+      - PORT=11011
+      - BASE_PATH=
+      - UMASK=022
+    volumes:
+      - /opt/cleanuparr:/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11011/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
 
-First, get the PUID and PGID (unique identifiers) of the user you want to use these services with. 
+  readarr:
+    image: linuxserver/readarr:0.4.19-nightly
+    container_name: readarr
+    network_mode: service:wireguard
+    environment:
+      - PUID=1016
+      - PGID=1002
+      - TZ=America/New_York
+    volumes:
+      - /opt/readarr:/config
+      - /mnt/storage:/data
+    restart: always
 
-<code>id <username\></code>
+  whisper-subgen:
+    image: mccloud/subgen:latest
+    container_name: whisper-subgen
+    network_mode: service:wireguard
+    environment:
+      - PUID=1017
+      - PGID=1002
+      - TZ=America/New_York
+      - SUBGEN_WHISPER_MODEL=base
+      - SUBGEN_WHISPER_DEVICE=cpu
+      - WHISPER_THREADS=1
+      - OMP_NUM_THREADS=1
+    volumes:
+      - /opt/whisper-subgen:/config
+      - /mnt/storage:/data
+    restart: unless-stopped
 
-<pre>
-uid=1000(wbollock) gid=1000(wbollock) groups=1000(wbollock),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),109(lxd),114(lpadmin),115(sambashare),128(deluge)
-</pre>
+  agregarr:
+    image: agregarr/agregarr:2.0.0
+    container_name: agregarr
+    network_mode: service:wireguard
+    volumes:
+      - /opt/agregarr:/app/config
+    restart: unless-stopped
+```
 
-So, here they are both 1000. Substitute the username you wish to run these services with. Permissions are important in this case, and <code>ls -l</code> is your friend.
+## Bring it up
 
-### Directories
+From the directory with `docker-compose.yaml`:
 
-Now we are onto the directories. 
+```bash
+docker compose up -d
+```
 
-I want my configuration files in /etc/. We need to make a configuration directory for each service.
+Check status:
 
-For example, our radarr container needs these values:
+```bash
+docker compose ps
+docker compose logs
+# specific logs
+docker compose logs --tail=200 radarr sonarr deluge prowlarr
+```
 
-<pre>
-volumes:
-    - <\path to data>:/config
-    - <\path/to/movies>:/movies
-    - <\path/to/downloadclient-downloads>:/downloads
-</pre>
+## Service URLs
 
-You need to repeat this step for every service. Here's a one liner of a good setup.
+Use your server IP + port:
 
-<code>sudo mkdir /etc/radarr/ /etc/sonarr/ /etc/jackett/ /etc/deluge/</code>
+- Sonarr: `:8989`
+- Radarr: `:7878`
+- 4K Radarr: `:7979`
+- Deluge: `:8112`
+- Prowlarr: `:9696`
+- Bazarr: `:6767`
+- 4K Bazarr: `:6969`
+- Overseerr: `:5055`
+- Profilarr: `:6868`
+- Huntarr: `:9705`
+- Cleanuparr: `:11011`
+- Readarr: `:8787`
+- Agregarr: `:7171`
 
-Now fill in the "<\path to data>" with the above directories.
+I use nginx proxy manager to create nice subdomains for everything. It only runs locally on a home LAN. Do not expose these services publiclly!!
+
+## Important path note (this gets people every time)
+
+Inside these containers, media is mounted at `/data`.
+
+So in Radarr/Sonarr/Readarr/Deluge settings, use paths under `/data/...`, not host paths that only exist outside the container.
 
 Example:
-<pre>
-volumes:
-    - /etc/radarr/:/config
-</pre>
 
+- Host path: `/mnt/storage/media/movies`
+- Container path: `/data/media/movies`
 
-Do the same with your "Movies" and "TV" directories.
-<pre>
-/mnt/STR/Plex Library/Movies:/movies
-</pre>
+## Troubleshooting
 
-The section after the colon, "/movies", is what docker associates with the long path before it. It's a psuedo symlink.
+If apps are "up" but can't reach indexers/download client, check `wireguard` first.
 
-Now, the deluge downloads folder is important. The other services will use it. I wanted this on my large storage array, so I chose:
-<code>/mnt/STR/deluge/</code>
+```bash
+docker compose logs --tail=300 wireguard
+docker exec -it wireguard sh -c 'ip addr; wg show'
+```
 
-Fill in the section <code><path/to/downloadclient-downloads></code> with the above.
+If UI is unreachable, confirm:
 
-I also wanted to make sure my user had access to all the config directories. 
+- Port is published on `wireguard`
+- Firewall allows that port
+- Service actually started (`docker compose ps`)
 
-<code>sudo chown -R wbollock:wbollock /etc/radarr/ /etc/deluge/ /etc/sonarr/ /etc/jackett</code>
+## Useful commands
 
-## Almost There
+```bash
+# stop everything
+docker compose stop
 
-Now we need to stop the existing services, as they both can't be bound to one port (there are other reasons too).
+# start everything
+docker compose start
 
-<code>sudo systemctl stop radarr.service jackett.service deluged.service deluge-web.service sonarr.service</code>
+# restart one app
+docker compose restart radarr
 
-Your completed docker-compose file should look something like this:
+# restart stack
+docker compose restart
 
-<pre>
-version: '3'
-services:
- radarr:
-  container_name: radarr
-  restart: unless-stopped
-  ports:
-   - 7878:7878
-  volumes:
-    - /etc/radarr/:/config
-    - /mnt/STR/Plex Library/Movies:/movies
-    - /mnt/STR/deluge/:/downloads
-  environment:
-   - PUID=1000
-   - PGID=1000
-   - TZ=America/New_York
-  image: linuxserver/radarr
- 
- sonarr:
-  container_name: sonarr
-  restart: unless-stopped
-  ports:
-   - 8989:8989
-  volumes:
-    - /etc/sonarr/:/config
-    - /mnt/STR/Plex Library/TV Shows:/tv
-    - /mnt/STR/deluge/:/downloads
-  environment:
-   - PUID=1000
-   - PGID=1000
-   - TZ=America/New_York
-  image: linuxserver/sonarr
- 
- jackett:
-  container_name: jackett
-  restart: unless-stopped
-  ports:
-   - 9117:9117
-  volumes:
-   - /etc/Jackett/:/config
-  environment:
-   - PUID=1000
-   - PGID=1000
-   - TZ=America/New_York
-  image: linuxserver/jackett
- 
- deluge:
-  container_name: deluge
-  restart: unless-stopped
-  network_mode: host
-  environment:
-   - PUID=1000
-   - PGID=1000
-   - TZ=America/New_York
-   - UMASK_SET=000 
-   - DELUGE_LOGLEVEL=error 
-  volumes:
-   - /etc/deluge/:/config
-   - /mnt/STR/deluge/:/downloads
-  image: linuxserver/deluge
-</pre>
+# recreate after changes
+docker compose up -d --force-recreate
 
-Check your compose file with <code>docker-compose config</code>. Mine is located in /home/wbollock/Radarr-Stack. Make sure to name the file docker-compose.yml.
+# follow logs
+docker compose logs -f
+```
 
-**Important:** yml uses spaces, NOT tabs. It's very particular about every single indent. Make sure to line everything up properly, and possibly use an [online yml parser](http://yaml-online-parser.appspot.com/) to help.
+## Backup priorities
 
-You can only run docker-compose commands when in the same directory with your yml file. Or use the --file parameter to specify where the yml file is, if you're outside of that directory.
+At minimum, back up:
 
+- Your `docker-compose.yaml`
+- WireGuard config directory
+- VPN config directory (if local)
+- Service config directories (for example `/opt/*`)
 
-Finally, once you get a valid output and no errors from the above command, we're ready to create (it'll spit out the error in an obvious way if you have any). Run this in the folder with docker-compose.yml
-
-<code>sudo docker-compose up -d</code>
-
-**Explanation:** the -d is to run in detached mode, so we can use the terminal normally while it runs. Similar to &.
-
-
-**Note:** one error I ran into was that a process, mono, was already listening on 8989. I took down my docker compose stack with <code>sudo docker-compose down</code>, and ran <code> sudo netstat -tulpn | grep :8989</code> to find out what was listening on that port. It was mono, with PID 5649. I ran <code>sudo kill 5649</code> to remove it from that port.
-
-To see your processes run, type <code>docker-compose ps</code>. Make sure you see every service there. 
-
-## Restoring our Settings
-
-Now we should have a clean version of each service. Visit those services and make sure they all work.
-
-Check out some of the files in /etc/radarr/. A lot of them are the same ones we backed up! We need to override those files with our backup.
-
-First, stop all running containers.
-
-<code>sudo docker-compose stop</code>
-
-Then navigate to your radarr_backup.zip. Unzip it. Remove all files in /etc/radarr/ and /etc/sonarr/. This includes any .pids, config.xmls, nzbdrone.db*. Really everything important except for logs, if you care.
-
-Move all the files (config.xml, nzbdrone.db, and nzbdrone.db-journal) to /etc/radarr/. These are unzipped from our .zip backups.
-
-
-Then run <code>sudo docker-compose -d</code> from your original docker compose folder.
-
-All your Radarr and Sonarr settings should be saved! Do <code>sudo docker-compose logs</code> if you have any issues.
-
-To access your services, go to YOUR IP.XX.XX:<\PORT SET IN DOCKER>.
-
-For example, running <code>sudo docker-compose ps</code>:
-
-<pre>
- Name     Command   State           Ports
-
-deluge    /init     Up
-jackett   /init     Up      0.0.0.0:9117->9117/tcp
-radarr    /init     Up      0.0.0.0:7878->7878/tcp
-sonarr    /init     Up      0.0.0.0:8989->8989/tcp
-</pre>
-
-For some reason, deluge doesn't show up, but it's port is 8112. If you're using <code>ufw</code>, make sure to run <code>sudo ufw allow PORT</code> to get by your firewall.
-
-
-
-
-
-## Reconfiguring a few things
-
-Sadly this isn't all automated. For example, my Sonarr/Radarr couldn't collect to deluge. I had to change "localhost" in the connection settings to 192.168.0.186 (IP you connect to deluge with). 
-
-Also, your apps will no longer understand the long root directories, /mnt/STR/Plex Library/Movies. Instead, change the path to /movies/ or /tv/, respectfully. I updated my library after doing this.
-
-Also, deluge will need it's download folder to change. In preferences, change that to /downloads.
-
-Lastly, just re-do your indexers in Jackett, and connect them to Radarr and Sonarr. All I had to change was my new API key - everything else stayed the same.
-
-## Missing Root Folder Error
-
-After verifying your /movies/ or /tv/ folders work, and you want the clear the Root Folder Error, go the Series or Movies editor. Select all entries, or just one to test (safer), and select a different root folder on the bottom bar. Then hit save. The error will go away after all pieces of media are updated (and the service is restarted).
-
-
-## A reminder - some useful docker-compose commands
-<pre>
- docker-compose
-
-  Run and manage multi container docker applications.
-  More information: https://docs.docker.com/compose/reference/overview/.
-
-  - List all running containers:
-    docker-compose ps
-
-  - Create and start all containers in the background using a docker-compose.yml file from the current directory:
-    docker-compose up -d
-
-  - Start all containers, rebuild if necessary:
-    docker-compose up --build
-
-  - Start all containers using an alternate compose file:
-    docker-compose --file path/to/file up
-
-  - Stop all running containers:
-    docker-compose stop
-
-  - Stop and remove all containers, networks, images, and volumes:
-    docker-compose down --rmi all --volumes
-
-  - Follow logs for all containers:
-    docker-compose logs --follow
-</pre>
-(Taken from [tldr](https://github.com/tldr-pages/tldr))
-
-Everything else should work just fine! I hope you enjoyed.
+Media data is separate from app config. Back it up on its own schedule.
